@@ -348,14 +348,11 @@ def __rgbToHex__(values):
     """
     Returns a formatted hex string created from the provided RGB values
     """
+    returnValue = DEFAULT_COLOR
     if __isHexString__(values):
         returnValue = values
     elif __isRGB__(values):
-        returnValue = ''.join(values)
-    else:
         returnValue = ''.join([__intToHex__(item) or '00' for item in __rgbFromValue__(values)])
-
-    returnValue = returnValue or DEFAULT_COLOR
 
     return __formatHexString__(returnValue)
 
