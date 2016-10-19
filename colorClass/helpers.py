@@ -1,20 +1,20 @@
+#!/usr/bin/env python
+# pylint: disable=C0322,C0323
 """
 Provides a set of helper functions to validate and manipulate object types
 """
-import collections
-import inspect
-import re
-import string
-import sys
+import collections, copy, inspect, re, string, sys
 from definedColors import __definedColors__
 
-# The default color value to use when the provided color value cannot be used
+
+# Default color values to use when the provided color value cannot be used
 DEFAULT_COLOR = '#000000'
-
-# The default hex value to use when the provided value cannot be used, for a given color.
 DEFAULT_HEX_VALUE = '00'
-
 DEFAULT_INT_VALUE = 0
+
+# A list of values, in order, that we'll look for when parsing iterables
+RGB_PARSER = ['r', 'g', 'b']
+RGB_NAMES = ['red', 'green', 'blue']
 
 # Non-whitespace characters that are turned into whitespace before splitting a potential RGB color string
 SEPARATORS = ','
@@ -34,9 +34,6 @@ HEX_PATTERNS = [
 if tuple(sys.version_info)[0] == 3:
     collections = collections.abc
 
-# A list of values, in order, that we'll look for when parsing iterables
-RGB_PARSER = ['r', 'g', 'b']
-RGB_NAMES = ['red', 'green', 'blue']
 
 def __isIntType__(obj):
     """
@@ -45,21 +42,14 @@ def __isIntType__(obj):
     return isinstance(obj, int)
 
 
-def __toInt__(obj, base = 10):
+def __isColorInt__(inputValue):
     """
-    If the provided object is an integer, it is returned.
-    If it is not, then it will try to return the value as an integer.
-    If a base is provided, and the provided object is not a number,
-    then it will be used to change the base of the provided number.
-    If an error occurs, None is returned.
+    Returns true if the provided value is an integer between 0 and 255.
     """
-    try:
-        if __isNumericType__(obj) is True:
-            return int(obj)
-        else:
-            return int(obj, base)
-    except:
-        return None
+    if __isIntType__(inputValue):
+        return 0 <= inputValue <= 255
+    else:
+        return False
 
 
 def __isFloatType__(obj):
@@ -69,19 +59,14 @@ def __isFloatType__(obj):
     return isinstance(obj, float)
 
 
-def __toFloat__(obj):
+def __isColorPercent__(inputValue):
     """
-    If the provided object is a float, it is returned.
-    If it is not, then it will try to return the value as a float.
-    If this fails, None is returned.
+    Returns true if the provided value is a float between 0.0 and 1.0.
     """
-    try:
-        if __isFloatType__(obj):
-            return obj
-        else:
-            return float(obj)
-    except:
-        return None
+    if __isFloatType__(inputValue):
+        return 0.0 <= inputValue <= 1.0
+    else:
+        return False
 
 
 def __isNumericType__(obj):
@@ -89,6 +74,16 @@ def __isNumericType__(obj):
     Returns true if the obj is an int or float
     """
     return True in [__isIntType__(obj), __isFloatType__(obj)]
+
+
+def __isHexString__(inputValue):
+    """
+    Returns True if the inputValue is a hex string.
+    """
+    if __isStringType__(inputValue):
+        return len([res for res in [patt.match(inputValue) for patt in HEX_PATTERNS] if res is not None]) > 0
+    else:
+        return False
 
 
 def __isStringType__(obj):
@@ -101,45 +96,11 @@ def __isStringType__(obj):
         return False
 
 
-
-def __splitString__(inputString):
+def __isFunctionType__(obj):
     """
-    Replaces any instances of SEPARATORS with a space, and then splits the
-    provided string.
-    If the value cannot be split, None is returned.
+    Returns true if the provided object is a function
     """
-    try:
-        splitString = inputString.strip().expandtabs(2)
-        return ''.join([splitString.replace(sepString, ' ') for sepString in SEPARATORS]).split()
-    except:
-        return None
-
-
-def __isMappingType__(obj):
-    """
-    Returns true if the obj is a Mapping type
-    """
-    return isinstance(obj, collections.Mapping)
-
-
-def __isTupleType__(obj):
-    """
-    Returns True if the provided value is a tuple
-    """
-    if __isIterableType__(obj):
-        return isinstance(obj, tuple)
-    else:
-        return False
-
-
-def __isListType__(obj):
-    """
-    Returns True if the provided value is a list
-    """
-    if __isIterableType__(obj):
-        return isinstance(obj, list)
-    else:
-        return False
+    return inspect.isfunction(obj)
 
 
 def __isIterableType__(obj):
@@ -159,65 +120,61 @@ def __isNonStringIterableType__(obj):
         return False
 
 
-def __isFunctionType__(obj):
+def __isListType__(obj):
     """
-    Returns true if the provided object is a function
+    Returns True if the provided value is a list
     """
-    return inspect.isfunction(obj)
-
-
-def __copyList__(fromList, initialValues = None):
-    """
-    Returns a copy of the provided list. Initial values must either be a single value, or
-    a list of exactly the same size as the provided list.
-    """
-    if __isListType__(fromList) is False:
-        raise ValueError('The provided value to copy was not a list!')
-
-    if initialValues is None or __isNonStringIterableType__(initialValues) is False:
-        copySingleValue = True
-    elif __isNonStringIterableType__(initialValues) and len(initialValues) == 1 or __isListType__(initialValues) is False:
-        # Treat an initialValue object with 1 element the same as a non-iterable, so we could set every value to a list, or to a non-list value
-        copySingleValue = True
-    else:
-        if len(initialValues) != len(fromList):
-            raise ValueError('The initial values list must be the same size as the list to copy!')
-        else:
-            copySingleValue = False
-
-    returnList = fromList[:]
-    for itemIndex in range(len(returnList)):
-        if copySingleValue is True:
-            returnList[itemIndex] = initialValues
-        else:
-            returnList[itemIndex] = initialValues[itemIndex]
-
-    return returnList
-
-
-def __validate__(inputValue, validationFunction, fallbackValue = None):
-    """
-    Executes the validation function on the provided value. If it passes, then
-    the value is returned. If the function fails, the fallback value is returned.
-    """
-    assert __isFunctionType__(validationFunction), 'The provided function was not a function!'
-    try:
-        if validationFunction(inputValue) == True:
-            return inputValue
-        else:
-            return fallbackValue
-    except:
-        return fallbackValue
-
-
-def __isColorInt__(inputValue):
-    """
-    Returns true if the provided value is an integer between 0 and 255.
-    """
-    if __isIntType__(inputValue):
-        return 0 <= inputValue <= 255
+    if __isIterableType__(obj):
+        return isinstance(obj, list)
     else:
         return False
+
+
+def __isMappingType__(obj):
+    """
+    Returns true if the obj is a Mapping type
+    """
+    return isinstance(obj, collections.Mapping)
+
+
+def __isTupleType__(obj):
+    """
+    Returns True if the provided value is a tuple
+    """
+    if __isIterableType__(obj):
+        return isinstance(obj, tuple)
+    else:
+        return False
+
+
+def __isRGB__(obj):
+    """
+    Returns true if the provided object is a 3-item tuple containing
+    integer values, or the value None.
+    """
+    if __isTupleType__(obj):
+        return len([True for item in obj if __isColorInt__(item) or item is None]) == 3
+    else:
+        return False
+
+
+def __toInt__(obj, base = 10):
+    """
+    If the provided object is an integer, it is returned.
+    If it is not, then it will try to return the value as an integer.
+    If a base is provided, and the provided object is not a number,
+    then it will be used to change the base of the provided number.
+    If an error occurs, None is returned.
+    """
+    try:
+        if __isNumericType__(obj) is True:
+            return int(obj)
+        elif base == 10:
+            return int(__toFloat__(obj))
+        else:
+            return int(obj, base)
+    except:
+        return None
 
 
 def __getColorInt__(inputValue):
@@ -269,14 +226,19 @@ def __intToHex__(inputValue):
             return DEFAULT_HEX_VALUE
 
 
-def __isColorPercent__(inputValue):
+def __toFloat__(obj):
     """
-    Returns true if the provided value is a float between 0.0 and 1.0.
+    If the provided object is a float, it is returned.
+    If it is not, then it will try to return the value as a float.
+    If this fails, None is returned.
     """
-    if __isFloatType__(inputValue):
-        return 0.0 <= inputValue <= 1.0
-    else:
-        return False
+    try:
+        if __isFloatType__(obj):
+            return obj
+        else:
+            return float(obj)
+    except:
+        return None
 
 
 def __getColorPercent__(inputValue):
@@ -303,27 +265,16 @@ def __getColorPercent__(inputValue):
         return inputValue
 
     else:
-
-        if __isColorPercent__(__toFloat__(inputValue)):
-            returnValue = __toFloat__(inputValue)
-
-        elif __isColorInt(inputValue) or __isColorInt__(__toInt__(inputValue)):
+        if __isColorInt__(inputValue) or __isColorInt__(__toInt__(inputValue)):
             returnValue = __toFloat__(inputValue / 255.0)
+
+        elif __isColorPercent__(__toFloat__(inputValue)):
+            returnValue = __toFloat__(inputValue)
 
         else:
             returnValue = None
 
         return __validate__(returnValue, __isColorPercent__, None)
-
-
-def __isHexString__(inputValue):
-    """
-    Returns True if the inputValue is a hex string.
-    """
-    if __isStringType__(inputValue):
-        return len([res for res in [patt.match(inputValue) for patt in HEX_PATTERNS] if res is not None]) > 0
-    else:
-        return False
 
 
 def __getHexString__(inputValue):
@@ -359,8 +310,8 @@ def __getHexString__(inputValue):
     elif __isColorInt__(inputValue):
         return __intToHex__(inputValue)
 
-    elif __isColorFloat__(inputValue):
-        return __getHexString__(__getColorInt__(inputValues))
+    elif __isColorPercent__(inputValue):
+        return __getHexString__(__getColorInt__(inputValue))
 
     return None
 
@@ -379,24 +330,34 @@ def __hexToInt__(inputValue):
         return None
 
 
-def __hexStringToRGB__(hexString):
+def __cleanString__(inputString):
     """
-    Returns a tuple of RGB values from the provided hexString.
+    If the provided value is a string, it is trimmed and lower-cased.
+    Otherwise the provided value is returned, as-is
     """
-
-    if __isHexString__(hexString):
-        rgb = [None for item in RGB_PARSER]
-        providedString = __getHexString__(hexString)
-
-        if len(providedString) == 2:
-            rgb[0] = providedString
+    try:
+        if __isStringType__(inputString):
+            return inputString.strip().lower()
         else:
-            for colorIndex in range(0, len(providedString), 2):
-                rgb[colorIndex / 2] = __hexToInt__(providedString[colorIndex: colorIndex + 2])
+            return inputString
+    except:
+        return inputString
 
-        return tuple(rgb)
+
+def __rgbToHex__(values):
+    """
+    Returns a formatted hex string created from the provided RGB values
+    """
+    if __isHexString__(values):
+        returnValue = values
+    elif __isRGB__(values):
+        returnValue = ''.join(values)
     else:
-        return tuple(DEFAULT_HEX_VALUE, DEFAULT_HEX_VALUE, DEFAULT_HEX_VALUE)
+        returnValue = ''.join([__intToHex__(item) or '00' for item in __rgbFromValue__(values)])
+
+    returnValue = returnValue or DEFAULT_COLOR
+
+    return __formatHexString__(returnValue)
 
 
 def __formatHexString__(inputValue):
@@ -411,6 +372,67 @@ def __formatHexString__(inputValue):
             return hexString
     else:
         return None
+
+
+def __splitString__(inputString):
+    """
+    Replaces any instances of SEPARATORS with a space, and then splits the
+    provided string.
+    If the value cannot be split, None is returned.
+    """
+    try:
+        splitString = inputString.strip().expandtabs(2)
+        return ''.join([splitString.replace(sepString, ' ') for sepString in SEPARATORS]).split()
+    except:
+        return None
+
+
+def __validate__(inputValue, validationFunction, fallbackValue = None):
+    """
+    Executes the validation function on the provided value. If it passes, then
+    the value is returned. If the function fails, the fallback value is returned.
+    """
+    assert __isFunctionType__(validationFunction), 'The provided function was not a function!'
+    try:
+        if validationFunction(inputValue) == True:
+            return inputValue
+        else:
+            return fallbackValue
+    except:
+        return fallbackValue
+
+
+def __copyList__(fromList, initialValues = None):
+    """
+    Returns a copy of the provided list. Initial values must either be a single value, or
+    a list of exactly the same size as the provided list.
+    """
+    if __isListType__(fromList) is False:
+        raise ValueError('The provided value to copy was not a list!')
+
+    fromList = copy.deepcopy(fromList)
+    if initialValues is not None:
+        initialValues = copy.deepcopy(initialValues)
+
+    if initialValues is None or __isNonStringIterableType__(initialValues) is False:
+        copySingleValue = True
+    elif __isNonStringIterableType__(initialValues) and len(initialValues) == 1 or __isListType__(initialValues) is False:
+        # Treat an initialValue object with 1 element the same as a non-iterable, so we could set every value to a list, or to a non-list value
+        copySingleValue = True
+    else:
+        if len(initialValues) != len(fromList):
+            raise ValueError('The initial values list must be the same size as the list to copy!')
+        else:
+            copySingleValue = False
+
+    returnList = fromList[:]
+    for itemIndex in range(len(returnList)):
+        if copySingleValue is True:
+            returnList[itemIndex] = initialValues
+        else:
+            returnList[itemIndex] = initialValues[itemIndex]
+
+    return returnList
 
 
 def __flatten__(obj):
@@ -452,6 +474,17 @@ def __flatten__(obj):
     return tuple(returnObj)
 
 
+def __getElement__(inputList, index = 0, fallbackValue = None):
+    """
+    Returns the element at the specified index, in the provided list.
+    If this fails for any reason, then the fallback value is returned.
+    """
+    try:
+        return inputList[index]
+    except:
+        return fallbackValue
+
+
 def __getValues__(values = None):
     """
     Returns the provided values, as a tuple. Note that a tuple is *always*
@@ -471,36 +504,6 @@ def __getValues__(values = None):
         return flattendValues
     else:
         return (values,)
-
-
-def __getElement__(inputList, index = 0, fallbackValue = None):
-    """
-    Returns the element at the specified index, in the provided list.
-    If this fails for any reason, then the fallback value is returned.
-    """
-    try:
-        return inputList[index]
-    except:
-        return fallbackValue
-
-
-def __parseStringValue__(stringValue):
-    """
-    Tries to extract a hex value from the provided string.
-    Returns None if unsuccessful.
-    """
-    if __isStringType__(stringValue):
-        stringValue = stringValue.lower().strip()
-        if stringValue in COLORS:
-            return COLORS[stringValue]
-
-        elif __isHexString__(stringValue):
-            return __getHexString__(stringValue)
-
-        else:
-            return __rgbFromValue__(__splitString__(stringValue))
-    else:
-        return None
 
 
 def __getColorTupleFromElement__(tupleValue):
@@ -564,7 +567,10 @@ def __parseIterableValue__(iterableValue):
     # Copy the parser. We'll return this structure, regardless of the outcome
     rgb = RGB_PARSER[:]
 
-    if __isNonStringIterableType__(iterableValue):
+    if __isRGB__(iterableValue):
+        return __rgbToHex__(iterableValue)
+
+    elif __isNonStringIterableType__(iterableValue):
         # Handle a dictionary with rgb key/value pairs OR a list of values, in RGB order.
         parseValues = dict((colorTuple[0], colorTuple[1]) for colorTuple in (__getColorTupleFromElement__(item) for item in enumerate(iterableValue)) if colorTuple[0] is not None)
         # Update the appropriate color values
@@ -576,23 +582,59 @@ def __parseIterableValue__(iterableValue):
         return tuple([None for i in rgb])
 
 
-def __rgbToHex__(values):
+def __parseStringValue__(stringValue):
     """
-    Returns a formatted hex string created from the provided RGB values
+    Tries to extract a hex value from the provided string.
+    Returns None if unsuccessful.
     """
-    rgb = [__intToHex__(item) or '00' for item in __parseIterableValue__(values)]
-    return __formatHexString__(''.join(rgb).upper())
+    if __isHexString__(stringValue):
+        return __getHexString__(stringValue)
+
+    elif __isStringType__(stringValue):
+        stringValue = stringValue.lower().strip()
+        if stringValue in COLORS:
+            return COLORS[stringValue]
+        else:
+            return __hexFromValue__(__splitString__(stringValue))
+    else:
+        return None
+
+
+def __hexStringToRGB__(hexString):
+    """
+    Returns a tuple of RGB values from the provided hexString.
+    """
+    rgb = [DEFAULT_INT_VALUE for item in RGB_PARSER]
+
+    if __isHexString__(hexString):
+        providedString = __getHexString__(hexString)
+
+        for colorIndex in range(0, len(providedString), 2):
+            rgb[colorIndex / 2] = __hexToInt__(providedString[colorIndex: colorIndex + 2])
+
+
+    return tuple(rgb)
+
+
+def __hexFromValue__(*inputValue):
+    """
+    Returns a hex value from the provided value, with invalid values replaced
+    with default values.
+    """
+    return __rgbToHex__(__rgbFromValue__(inputValue))
 
 
 def __rgbFromValue__(*inputValue):
     """
-    The main parsing function. Attempts to figure out the
-    color value from the provided values.
+    The main parsing function. Attempts to return an RGB tuple
+    from the provided values.
     """
     parseValue = __getValues__(inputValue)
 
+    if __isRGB__(parseValue):
+        return parseValue
     # Parse as a hex string, or as the red color of an RGB pair
-    if len(parseValue) == 1:
+    elif len(parseValue) == 1:
         parseValue = parseValue[0]
         returnValue = __parseStringValue__(parseValue)
         if returnValue is not None:
@@ -605,49 +647,91 @@ def __rgbFromValue__(*inputValue):
         return __parseIterableValue__(parseValue)
 
     else:
-        return __rgbFromValue__(DEFAULT_HEX_VALUE)
+        return tuple([None, None, None])
 
 
-def __hexFromValue__(*inputValue):
+class __const__(object):
     """
-    Runs __rgbToHex__ on the result of __rgbFromValue__
+    A subclass of object that does not allow existing properties to be updated. New values can be added.
+    Properties can be referenced like normal object properties, or like a dictionary.
+    New values can only be valid colors, and will be converted to hex strings.
     """
-    return __rgbToHex__(__rgbFromValue__(inputValue))
-
-
-def __cleanString__(inputString):
-    """
-    Trims and lowers a string, then returns it.
-    If there is an error, the provided value is returned, as-is
-    """
-    try:
-        return inputString.strip().lower()
-    except:
-        return inputString
-
-
-class __colors__(dict):
+    __slots__ = ['__colorValues__', '__colorNames__']
 
     def __init__(self):
-        self.update(__definedColors__)
+        __colorValues__ = dict(__definedColors__)
+        __colorNames__ = dict((__cleanString__(key), key) for key in __colorValues__.keys())
+        pass
 
-    def __getattr__(self, colorName):
-        "Returns the value of a property, or defaultValue, if the property does not exist."
-        internalKey = self.get_key(colorName)
-        if internalKey is not None:
-            return internalKey
+    def __contains__(self, lookupKey):
+        """
+        Returns true if lookupKey is in this object. Case does not matter.
+        """
+        return self.has_key(lookupKey)
+
+    def __get__(self, lookupKey, defaultValue = None):
+        """
+        Returns the value of a property. If it does not exist, the default value is returned.
+        """
+        try:
+            return self.__getitem__(lookupKey)
+        except AttributeError as err:
+            return defaultValue
+
+    def __getattr__(self, lookupKey, defaultValue = None):
+        """
+        Returns the value of a property. If it does not exist, the default value is returned.
+        """
+        try:
+            return self.__getitem__(lookupKey)
+        except AttributeError as err:
+            return defaultValue
+
+    def __getitem__(self, lookupKey):
+        """
+        Returns the value corresponding to the lookupKey.
+        """
+        lookupKey = self.get_key(lookupKey)
+        if lookupKey is not None:
+            return self.__colorValues__[lookupKey]
         else:
-            raise AttributeError("No such color: " + colorName)
+            raise AttributeError("No such property: %s" % lookupKey)
 
-    def __setattr__(self, colorName, *colorValue):
-        "Adds a property with a value, but will not update an existing value."
-        storedName = colorName.strip().upper()
+    def __set__(self, lookupKey, *newValue):
+        """
+        Adds a property with a value, but will not update an existing value.
+        """
+        self.__setitem__(lookupKey, newValue)
 
-        if storedName not in self:
-            self[storedName] = __hexFromValue__(colorValue)
+    def __setattr__(self, lookupKey, *newValue):
+        """
+        Adds a property with a value, but will not update an existing value.
+        """
+        self.__setitem__(lookupKey, newValue)
 
+    def __setitem__(self, lookupKey, *newValue):
+        """
+        Adds a property with a value, but will not update an existing value.
+        """
+
+        if __isStringType__(lookupKey):
+            if lookupKey not in self.__colorNames__:
+                cleanKey = __cleanString__(lookupKey)
+                self.__colorValues__[lookupKey] = __hexFromValue__(newValue)
+                self.__colorNames__[cleanKey] = lookupKey.strip()
+            else:
+                raise KeyError('Cannot overwrite an existing key value!')
+        else:
+            raise TypeError('The property key must be a string!')
+
+    def __dir__(self):
+        """Returns the list of properties for the object"""
+        return dir(self.__class__) + [str(k) for k in self.__colorValues__.keys()]
 
     def has_key(self, lookupKey):
+        """
+        Returns true if lookupKey is in this object. Case does not matter.
+        """
         return self.get_key(lookupKey) is not None
 
     def get_key(self, lookupKey):
@@ -655,13 +739,10 @@ class __colors__(dict):
         Performs a caseless search on the object's keys to find lookupKey. If it
         exists, the first matched key (with original casing) is returned.
         """
-        try:
-            internalKey = [key for key in self.keys() if __cleanString__(lookupKey) == __cleanString__(key)]
-            if len(internalKey) >= 1:
-                return internalKey[0]
-            else:
-                return None
-        except:
+        lookupValue = __cleanString__(lookupKey)
+        if lookupValue in self.__colorNames__:
+            return self.__colorNames__[lookupValue]
+        else:
             return None
 
-COLORS = __colors__()
+COLORS = __const__()

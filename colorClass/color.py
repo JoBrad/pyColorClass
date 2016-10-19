@@ -1,8 +1,10 @@
 from __future__ import division
 #!/usr/bin/env python
+# pylint: disable=C0322,C0323
 """
-Provides the Color class
+Creates the Color class
 """
+import copy
 import helpers as h
 
 RGB_NAMES = h.RGB_NAMES
@@ -30,14 +32,17 @@ class Color(object):
         Color('#000000')    => (0, 0, 0)
         Color('#000')       => (0, 0, 0)
     """
-
     __slots__ = ['__rgb__', '__names__']
-    __names__ = RGB_NAMES[:]
-    __rgb__ = h.__copyList__(RGB_NAMES[:], None)
 
     def __init__(self, *values):
+        self.__names__ = RGB_NAMES[:]
+        self.__rgb__ = [None for item in self.__names__]
+
         if len(values) > 0:
-            self.rgb = values
+            if len(values) == 1 and isinstance(values[0], Color):
+                self.__rgb__ = copy.deepcopy(values[0].__rgb__)
+            else:
+                self.rgb = values
 
 
     def __str__(self):
@@ -51,6 +56,18 @@ class Color(object):
         Returns an evaluatable string representation of the hex string for the color object
         """
         return repr(self.hex)
+
+    def __copy__(self):
+        """
+        Returns a copy of this object
+        """
+        return copy.copy(self)
+
+    def __deepcopy__(self, memo):
+        """
+        Returns a deep copy of this object
+        """
+        return copy.deepcopy(self.__rgb__, memo)
 
     @property
     def rgb(self):

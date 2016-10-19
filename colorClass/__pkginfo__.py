@@ -19,8 +19,11 @@ changelog = {
     ],
     '0.0.3': [
         'Separated the definedColors and helpers modules',
-        'Refactored code to reduce dependencies, and provide more robust parsing of values',
-        'Test coverage is nearly complete!'
+        'Refactored the helpers module to reduce complexity and dependencies, provide more robust parsing of values, and to correct several issues',
+        '__rgbFromValue__ would sometimes leave hex values in the RGB tuple. This is fixed.',
+        'Fewer functions try to extensively convert a provided value, and those that still do convert will prefer their intended input value type.',
+        'Test coverage is virtually complete!',
+        'The color constant class and the Color class both use the same parsing functions to determine the provided color.'
     ]
 }
 

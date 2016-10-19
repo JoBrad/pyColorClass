@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+# pylint: disable=C0322,C0323
+"""
+This module defines HTML color names with their Hex values.
+"""
+
 _allowedNames = set(['__name__', '__file__', '__doc__'])
 _ignoredNames = set()
 
